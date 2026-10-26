@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, MouseEvent as ReactMouseEvent, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   Archive,
@@ -222,21 +222,123 @@ function UploadDialog({
   );
 }
 
-function AssetPreview({ asset }: { asset: Asset }) {
+function AssetPreview({ asset, onOpenImage }: { asset: Asset; onOpenImage: (asset: Asset) => void }) {
   const [imageFailed, setImageFailed] = useState(false);
   const previewUrl = asset.cover_url || (asset.asset_type === "image" ? "/api/assets/" + asset.id + "/file/original" : null);
+  const isImage = asset.asset_type === "image";
 
   useEffect(() => {
     setImageFailed(false);
   }, [previewUrl]);
 
-  return (
-    <a className="asset-preview" href={"/api/assets/" + asset.id + "/file/original"} target="_blank" rel="noreferrer" title={asset.original_name || asset.title}>
+  const preview = (
+    <>
       {previewUrl && !imageFailed
         ? <img src={previewUrl} alt={asset.title} loading="lazy" decoding="async" onError={() => setImageFailed(true)} />
         : <span className={"file-type-art " + asset.asset_type}>{typeIcon(asset.asset_type)}<small>{typeLabel(asset.asset_type)}</small></span>}
       <span className={"asset-status " + asset.status}>{asset.status === "published" ? "已发布" : asset.status === "archived" ? "已归档" : "待整理"}</span>
+    </>
+  );
+
+  if (isImage) {
+    return (
+      <button
+        type="button"
+        className="asset-preview image-asset-preview"
+        onClick={() => onOpenImage(asset)}
+        title={"放大查看：" + (asset.original_name || asset.title)}
+        aria-label={"放大查看图片：" + asset.title}
+      >
+        {preview}
+      </button>
+    );
+  }
+
+  return (
+    <a className="asset-preview" href={"/api/assets/" + asset.id + "/file/original"} target="_blank" rel="noreferrer" title={asset.original_name || asset.title}>
+      {preview}
     </a>
+  );
+}
+
+function ImageLightbox({ asset, onClose }: { asset: Asset; onClose: () => void }) {
+  const [imageState, setImageState] = useState<"loading" | "loaded" | "error">("loading");
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const originalUrl = "/api/assets/" + asset.id + "/file/original";
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", handleKeyDown);
+    closeButtonRef.current?.focus();
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleKeyDown);
+      previouslyFocused?.focus();
+    };
+  }, [onClose]);
+
+  const closeOnBackdrop = (event: ReactMouseEvent<HTMLElement>) => {
+    if (event.target === event.currentTarget) onClose();
+  };
+
+  return (
+    <div
+      className="image-lightbox"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="image-lightbox-title"
+      aria-describedby="image-lightbox-description"
+      onClick={closeOnBackdrop}
+    >
+      <header className="image-lightbox-header">
+        <div className="image-lightbox-heading">
+          <span className="image-lightbox-kicker">图片预览</span>
+          <h2 id="image-lightbox-title">{asset.title}</h2>
+        </div>
+        <button ref={closeButtonRef} type="button" className="image-lightbox-close" onClick={onClose} aria-label="关闭图片预览">
+          <X size={22} />
+        </button>
+      </header>
+
+      <div className="image-lightbox-stage" onClick={closeOnBackdrop}>
+        {imageState !== "error" && (
+          <img
+            className={"image-lightbox-image " + (imageState === "loaded" ? "is-loaded" : "")}
+            src={originalUrl}
+            alt={asset.title}
+            decoding="async"
+            onClick={(event) => event.stopPropagation()}
+            onLoad={() => setImageState("loaded")}
+            onError={() => setImageState("error")}
+          />
+        )}
+        {imageState === "loading" && <div className="image-lightbox-loading" role="status"><span className="image-lightbox-spinner" />正在加载原图…</div>}
+        {imageState === "error" && (
+          <div className="image-lightbox-error" role="alert">
+            <FileImage size={34} />
+            <strong>原图加载失败</strong>
+            <span>可尝试重新打开或检查文件是否仍然存在。</span>
+            <a href={originalUrl} target="_blank" rel="noreferrer">在新窗口打开原图</a>
+          </div>
+        )}
+      </div>
+
+      <footer className="image-lightbox-footer" id="image-lightbox-description">
+        <span>{asset.original_name || typeLabel(asset.asset_type)}</span>
+        <i />
+        <span>{formatBytes(asset.size_bytes)}</span>
+        <i />
+        <span>{formatDate(asset.updated_at)}</span>
+        <span className="image-lightbox-hint">点击空白处或按 Esc 关闭</span>
+      </footer>
+    </div>
   );
 }
 
@@ -251,6 +353,7 @@ function App() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [view, setView] = useState<"grid" | "list">("grid");
   const [menuId, setMenuId] = useState<string | null>(null);
+  const [selectedImage, setSelectedImage] = useState<Asset | null>(null);
 
   useEffect(() => {
     fetch("/api/auth/session")
@@ -384,9 +487,17 @@ function App() {
               <div className={"asset-grid" + (view === "list" ? " list-view" : "")}>
                 {assets.map((asset) => (
                   <article className="asset-card" key={asset.id}>
-                    <AssetPreview asset={asset} />
+                    <AssetPreview asset={asset} onOpenImage={setSelectedImage} />
                     <div className="asset-info">
-                      <div className="asset-title-row"><a href={"/api/assets/" + asset.id + "/file/original"} target="_blank" rel="noreferrer" className="asset-title">{asset.title}</a><button className="icon-button card-menu-button" onClick={() => setMenuId(menuId === asset.id ? null : asset.id)} title="更多操作"><MoreHorizontal size={18} /></button>{menuId === asset.id && <div className="asset-menu"><button onClick={() => void updateStatus(asset)}>{asset.status === "published" ? "撤回发布" : "发布资产"}</button><button className="danger-action" onClick={() => void deleteAsset(asset)}>删除资产</button></div>}</div>
+                      <div className="asset-title-row">
+                        {asset.asset_type === "image" ? (
+                          <button type="button" className="asset-title asset-title-button" onClick={() => setSelectedImage(asset)} title={"放大查看：" + asset.title}>{asset.title}</button>
+                        ) : (
+                          <a href={"/api/assets/" + asset.id + "/file/original"} target="_blank" rel="noreferrer" className="asset-title">{asset.title}</a>
+                        )}
+                        <button className="icon-button card-menu-button" onClick={() => setMenuId(menuId === asset.id ? null : asset.id)} title="更多操作"><MoreHorizontal size={18} /></button>
+                        {menuId === asset.id && <div className="asset-menu"><button onClick={() => void updateStatus(asset)}>{asset.status === "published" ? "撤回发布" : "发布资产"}</button><button className="danger-action" onClick={() => void deleteAsset(asset)}>删除资产</button></div>}
+                      </div>
                       <div className="asset-meta"><span>{typeLabel(asset.asset_type)}</span><i /><span>{formatBytes(asset.size_bytes)}</span><i /><span>{formatDate(asset.updated_at)}</span></div>
                       {asset.tags.length > 0 && <div className="tag-row">{asset.tags.slice(0, 3).map((tag) => <span key={tag}>{tag}</span>)}</div>}
                     </div>
@@ -398,6 +509,7 @@ function App() {
           <footer className="page-footer"><span>© MOV Asset Library</span><span><ShieldCheck size={13} />你的文件保存在私有存储空间</span></footer>
         </div>
       </main>
+      {selectedImage && <ImageLightbox key={selectedImage.id} asset={selectedImage} onClose={() => setSelectedImage(null)} />}
       {dialogOpen && session.csrf_token && <UploadDialog csrf={session.csrf_token} onClose={() => setDialogOpen(false)} onCreated={loadAssets} />}
     </div>
   );
