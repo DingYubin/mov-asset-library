@@ -16,6 +16,7 @@ import {
   Layers3,
   LogOut,
   MoreHorizontal,
+  Play,
   Plus,
   Search,
   Settings2,
@@ -224,18 +225,70 @@ function UploadDialog({
 
 function AssetPreview({ asset, onOpenImage }: { asset: Asset; onOpenImage: (asset: Asset) => void }) {
   const [imageFailed, setImageFailed] = useState(false);
+  const [videoPreviewActive, setVideoPreviewActive] = useState(false);
+  const [videoPlaying, setVideoPlaying] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const previewUrl = asset.cover_url || (asset.asset_type === "image" ? "/api/assets/" + asset.id + "/file/original" : null);
   const isImage = asset.asset_type === "image";
+  const isVideo = asset.asset_type === "video";
+  const originalUrl = "/api/assets/" + asset.id + "/file/original";
 
   useEffect(() => {
     setImageFailed(false);
   }, [previewUrl]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (videoPreviewActive) {
+      void video.play().catch(() => setVideoPlaying(false));
+      return;
+    }
+
+    video.pause();
+    setVideoPlaying(false);
+    if (video.readyState >= HTMLMediaElement.HAVE_METADATA) {
+      try {
+        video.currentTime = 0;
+      } catch {
+        // The browser may reject a seek while the media source is changing.
+      }
+    }
+  }, [videoPreviewActive]);
+
+  function startVideoPreview() {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    setVideoPreviewActive(true);
+  }
+
+  function stopVideoPreview() {
+    setVideoPreviewActive(false);
+  }
 
   const preview = (
     <>
       {previewUrl && !imageFailed
         ? <img src={previewUrl} alt={asset.title} loading="lazy" decoding="async" onError={() => setImageFailed(true)} />
         : <span className={"file-type-art " + asset.asset_type}>{typeIcon(asset.asset_type)}<small>{typeLabel(asset.asset_type)}</small></span>}
+      {isVideo && (
+        <video
+          ref={videoRef}
+          className="asset-video-preview"
+          src={originalUrl}
+          poster={previewUrl || undefined}
+          preload="none"
+          muted
+          loop
+          playsInline
+          aria-hidden="true"
+          tabIndex={-1}
+          onPlaying={() => setVideoPlaying(true)}
+          onPause={() => setVideoPlaying(false)}
+          onError={() => setVideoPlaying(false)}
+        />
+      )}
+      {isVideo && <span className="video-hover-cue"><Play size={11} fill="currentColor" />悬停播放</span>}
       <span className={"asset-status " + asset.status}>{asset.status === "published" ? "已发布" : asset.status === "archived" ? "已归档" : "待整理"}</span>
     </>
   );
@@ -255,7 +308,18 @@ function AssetPreview({ asset, onOpenImage }: { asset: Asset; onOpenImage: (asse
   }
 
   return (
-    <a className="asset-preview" href={"/api/assets/" + asset.id + "/file/original"} target="_blank" rel="noreferrer" title={asset.original_name || asset.title}>
+    <a
+      className={"asset-preview video-asset-preview" + (videoPlaying ? " is-playing" : "")}
+      href={originalUrl}
+      target="_blank"
+      rel="noreferrer"
+      title={"悬停预览 · 点击打开原视频：" + (asset.original_name || asset.title)}
+      aria-label={"视频：" + asset.title + "，悬停预览，点击在新窗口打开"}
+      onMouseEnter={startVideoPreview}
+      onMouseLeave={stopVideoPreview}
+      onFocus={startVideoPreview}
+      onBlur={stopVideoPreview}
+    >
       {preview}
     </a>
   );
