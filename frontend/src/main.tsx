@@ -222,6 +222,24 @@ function UploadDialog({
   );
 }
 
+function AssetPreview({ asset }: { asset: Asset }) {
+  const [imageFailed, setImageFailed] = useState(false);
+  const previewUrl = asset.cover_url || (asset.asset_type === "image" ? "/api/assets/" + asset.id + "/file/original" : null);
+
+  useEffect(() => {
+    setImageFailed(false);
+  }, [previewUrl]);
+
+  return (
+    <a className="asset-preview" href={"/api/assets/" + asset.id + "/file/original"} target="_blank" rel="noreferrer" title={asset.original_name || asset.title}>
+      {previewUrl && !imageFailed
+        ? <img src={previewUrl} alt={asset.title} loading="lazy" decoding="async" onError={() => setImageFailed(true)} />
+        : <span className={"file-type-art " + asset.asset_type}>{typeIcon(asset.asset_type)}<small>{typeLabel(asset.asset_type)}</small></span>}
+      <span className={"asset-status " + asset.status}>{asset.status === "published" ? "已发布" : asset.status === "archived" ? "已归档" : "待整理"}</span>
+    </a>
+  );
+}
+
 function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [assets, setAssets] = useState<Asset[]>([]);
@@ -366,10 +384,7 @@ function App() {
               <div className={"asset-grid" + (view === "list" ? " list-view" : "")}>
                 {assets.map((asset) => (
                   <article className="asset-card" key={asset.id}>
-                    <a className="asset-preview" href={"/api/assets/" + asset.id + "/file/original"} target="_blank" rel="noreferrer">
-                      {asset.asset_type === "image" && asset.cover_url ? <img src={asset.cover_url} alt="" /> : <span className={"file-type-art " + asset.asset_type}>{typeIcon(asset.asset_type)}<small>{typeLabel(asset.asset_type)}</small></span>}
-                      <span className={"asset-status " + asset.status}>{asset.status === "published" ? "已发布" : asset.status === "archived" ? "已归档" : "待整理"}</span>
-                    </a>
+                    <AssetPreview asset={asset} />
                     <div className="asset-info">
                       <div className="asset-title-row"><a href={"/api/assets/" + asset.id + "/file/original"} target="_blank" rel="noreferrer" className="asset-title">{asset.title}</a><button className="icon-button card-menu-button" onClick={() => setMenuId(menuId === asset.id ? null : asset.id)} title="更多操作"><MoreHorizontal size={18} /></button>{menuId === asset.id && <div className="asset-menu"><button onClick={() => void updateStatus(asset)}>{asset.status === "published" ? "撤回发布" : "发布资产"}</button><button className="danger-action" onClick={() => void deleteAsset(asset)}>删除资产</button></div>}</div>
                       <div className="asset-meta"><span>{typeLabel(asset.asset_type)}</span><i /><span>{formatBytes(asset.size_bytes)}</span><i /><span>{formatDate(asset.updated_at)}</span></div>

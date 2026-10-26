@@ -1,3 +1,4 @@
+import logging
 import mimetypes
 import secrets
 from pathlib import Path
@@ -14,7 +15,9 @@ from ..models import Asset, AssetFile, AuditLog, SessionRecord
 from ..schemas import AssetResponse, AssetUpdate
 from ..security import get_current_session, require_csrf
 from ..storage import get_storage
+from ..thumbnail_service import create_image_thumbnail
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/assets", tags=["assets"])
 
 
@@ -25,6 +28,10 @@ def tags_list(value: str | None) -> list[str]:
 def as_response(asset: Asset) -> AssetResponse:
     original = next((item for item in asset.files if item.kind == "original"), None)
     cover = next((item for item in asset.files if item.kind in {"cover", "thumbnail"}), None)
+    cover_url = f"/api/assets/{asset.id}/file/{cover.kind}" if cover else None
+    if not cover_url and original and asset.asset_type == "image":
+        # Older image assets may not have a generated thumbnail yet.
+        cover_url = f"/api/assets/{asset.id}/file/original"
     return AssetResponse(
         id=asset.id,
         title=asset.title,
@@ -34,7 +41,7 @@ def as_response(asset: Asset) -> AssetResponse:
         tags=tags_list(asset.tags),
         status=asset.status,
         visibility=asset.visibility,
-        cover_url=f"/api/assets/{asset.id}/file/{cover.kind}" if cover else None,
+        cover_url=cover_url,
         original_name=original.original_name if original else None,
         mime_type=original.mime_type if original else None,
         size_bytes=original.size_bytes if original else 0,
@@ -93,10 +100,16 @@ def create_asset(
     file.file.seek(0)
     if declared_size > settings.max_upload_bytes:
         raise HTTPException(status_code=413, detail="文件超过大小限制")
-    object_key = f"originals/{secrets.token_hex(16)}-{Path(file.filename).name}"
+    original_name = Path(file.filename).name
+    guessed_mime = mimetypes.guess_type(original_name)[0]
+    mime_type = file.content_type or guessed_mime or "application/octet-stream"
+    if mime_type == "application/octet-stream" and guessed_mime:
+        mime_type = guessed_mime
+
+    object_key = f"originals/{secrets.token_hex(16)}-{original_name}"
     storage = get_storage()
-    size, digest = storage.save_upload(object_key, file.file, file.content_type or "")
-    asset_type = (file.content_type or "application/octet-stream").split("/", 1)[0]
+    size, digest = storage.save_upload(object_key, file.file, mime_type)
+    asset_type = mime_type.split("/", 1)[0]
     asset = Asset(
         title=title.strip(),
         asset_type=asset_type,
@@ -104,16 +117,27 @@ def create_asset(
         tags=tags,
         description=description,
     )
-    asset.files.append(
-        AssetFile(
-            kind="original",
-            object_key=object_key,
-            original_name=Path(file.filename).name,
-            mime_type=file.content_type or mimetypes.guess_type(file.filename)[0] or "application/octet-stream",
-            size_bytes=size,
-            sha256=digest,
-        )
+    original = AssetFile(
+        kind="original",
+        object_key=object_key,
+        original_name=original_name,
+        mime_type=mime_type,
+        size_bytes=size,
+        sha256=digest,
     )
+    asset.files.append(original)
+    if asset_type == "image":
+        try:
+            thumbnail_result = create_image_thumbnail(storage, original, original_name)
+            if thumbnail_result:
+                thumbnail, source_width, source_height = thumbnail_result
+                asset.files.append(thumbnail)
+                asset.cover_key = thumbnail.object_key
+                original.width = source_width
+                original.height = source_height
+        except Exception:
+            # A preview failure must not stop the original asset from being stored.
+            logger.exception("Failed to generate thumbnail for %s", original_name)
     db.add(asset)
     db.flush()
     log(db, session, request, "asset_created", asset.id)
@@ -179,12 +203,13 @@ def get_file(
     safe_inline = content_type.startswith(("image/jpeg", "image/png", "image/gif", "image/webp", "video/", "audio/"))
     disposition = "inline" if safe_inline else "attachment"
     filename = quote(item.original_name, safe="")
+    cache_control = "private, max-age=86400, immutable" if kind == "thumbnail" else "private, no-store"
     return StreamingResponse(
         stream,
         media_type=content_type,
         headers={
             "Content-Disposition": f"{disposition}; filename*=UTF-8''{filename}",
             "X-Content-Type-Options": "nosniff",
-            "Cache-Control": "private, no-store",
+            "Cache-Control": cache_control,
         },
     )
