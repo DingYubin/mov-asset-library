@@ -9,7 +9,7 @@ from ..config import get_settings
 from ..db import get_db
 from ..models import AdminUser, AuditLog, LoginThrottle, SessionRecord, now_utc
 from ..schemas import LoginRequest, SessionResponse, UserResponse
-from ..security import SESSION_COOKIE, as_utc, new_session, require_csrf, verify_password
+from ..security import SESSION_COOKIE, as_utc, get_current_session, new_session, require_csrf, verify_password
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
