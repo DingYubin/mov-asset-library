@@ -223,7 +223,15 @@ function UploadDialog({
   );
 }
 
-function AssetPreview({ asset, onOpenImage }: { asset: Asset; onOpenImage: (asset: Asset) => void }) {
+function AssetPreview({
+  asset,
+  onOpenImage,
+  onOpenVideo,
+}: {
+  asset: Asset;
+  onOpenImage: (asset: Asset) => void;
+  onOpenVideo: (asset: Asset) => void;
+}) {
   const [imageFailed, setImageFailed] = useState(false);
   const [videoPreviewActive, setVideoPreviewActive] = useState(false);
   const [videoPlaying, setVideoPlaying] = useState(false);
@@ -264,6 +272,11 @@ function AssetPreview({ asset, onOpenImage }: { asset: Asset; onOpenImage: (asse
 
   function stopVideoPreview() {
     setVideoPreviewActive(false);
+  }
+
+  function openVideo() {
+    stopVideoPreview();
+    onOpenVideo(asset);
   }
 
   const preview = (
@@ -308,20 +321,19 @@ function AssetPreview({ asset, onOpenImage }: { asset: Asset; onOpenImage: (asse
   }
 
   return (
-    <a
+    <button
+      type="button"
       className={"asset-preview video-asset-preview" + (videoPlaying ? " is-playing" : "")}
-      href={originalUrl}
-      target="_blank"
-      rel="noreferrer"
-      title={"悬停预览 · 点击打开原视频：" + (asset.original_name || asset.title)}
-      aria-label={"视频：" + asset.title + "，悬停预览，点击在新窗口打开"}
+      title={"悬停预览 · 点击弹窗播放：" + (asset.original_name || asset.title)}
+      aria-label={"弹窗播放视频：" + asset.title}
+      onClick={openVideo}
       onMouseEnter={startVideoPreview}
       onMouseLeave={stopVideoPreview}
       onFocus={startVideoPreview}
       onBlur={stopVideoPreview}
     >
       {preview}
-    </a>
+    </button>
   );
 }
 
@@ -435,6 +447,107 @@ function ImageLightbox({ asset, onClose }: { asset: Asset; onClose: () => void }
   );
 }
 
+function VideoLightbox({ asset, onClose }: { asset: Asset; onClose: () => void }) {
+  const [videoState, setVideoState] = useState<"loading" | "ready" | "error">("loading");
+  const [reloadKey, setReloadKey] = useState(0);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const originalUrl = "/api/assets/" + asset.id + "/file/original";
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", handleKeyDown);
+    closeButtonRef.current?.focus();
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleKeyDown);
+      previouslyFocused?.focus();
+    };
+  }, [onClose]);
+
+  const closeOnBackdrop = (event: ReactMouseEvent<HTMLElement>) => {
+    if (event.target === event.currentTarget) onClose();
+  };
+
+  function retry() {
+    setVideoState("loading");
+    setReloadKey((value) => value + 1);
+  }
+
+  return (
+    <div
+      className="image-lightbox video-lightbox"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="video-lightbox-title"
+      aria-describedby="video-lightbox-description"
+    >
+      <header className="image-lightbox-header">
+        <div className="image-lightbox-heading">
+          <span className="image-lightbox-kicker">视频播放</span>
+          <h2 id="video-lightbox-title">{asset.title}</h2>
+        </div>
+        <button ref={closeButtonRef} type="button" className="image-lightbox-close" onClick={onClose} aria-label="关闭视频播放">
+          <X size={22} />
+        </button>
+      </header>
+
+      <div
+        className="image-lightbox-stage video-lightbox-stage"
+        onClick={closeOnBackdrop}
+        aria-busy={videoState === "loading"}
+      >
+        {videoState !== "error" && (
+          <video
+            key={reloadKey}
+            className="video-lightbox-player"
+            src={originalUrl}
+            poster={asset.cover_url || undefined}
+            controls
+            autoPlay
+            playsInline
+            preload="metadata"
+            onClick={(event) => event.stopPropagation()}
+            onCanPlay={() => setVideoState("ready")}
+            onError={() => setVideoState("error")}
+          >
+            当前浏览器不支持视频播放。
+          </video>
+        )}
+        {videoState === "loading" && (
+          <div className="image-lightbox-loading" role="status">
+            <span className="image-lightbox-spinner" />
+            正在加载视频…
+          </div>
+        )}
+        {videoState === "error" && (
+          <div className="image-lightbox-error" role="alert" onClick={(event) => event.stopPropagation()}>
+            <Video size={34} />
+            <strong>视频加载失败</strong>
+            <span>请检查文件是否仍然存在，或稍后重试。</span>
+            <button type="button" className="video-lightbox-retry" onClick={retry}>重新加载</button>
+          </div>
+        )}
+      </div>
+
+      <footer className="image-lightbox-footer" id="video-lightbox-description">
+        <span>{asset.original_name || typeLabel(asset.asset_type)}</span>
+        <i />
+        <span>{formatBytes(asset.size_bytes)}</span>
+        <i />
+        <span>{formatDate(asset.updated_at)}</span>
+        <span className="image-lightbox-hint">点击空白处或按 Esc 关闭</span>
+      </footer>
+    </div>
+  );
+}
+
 function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [assets, setAssets] = useState<Asset[]>([]);
@@ -447,6 +560,7 @@ function App() {
   const [view, setView] = useState<"grid" | "list">("grid");
   const [menuId, setMenuId] = useState<string | null>(null);
   const [selectedImage, setSelectedImage] = useState<Asset | null>(null);
+  const [selectedVideo, setSelectedVideo] = useState<Asset | null>(null);
 
   useEffect(() => {
     fetch("/api/auth/session")
@@ -580,11 +694,18 @@ function App() {
               <div className={"asset-grid" + (view === "list" ? " list-view" : "")}>
                 {assets.map((asset) => (
                   <article className="asset-card" key={asset.id}>
-                    <AssetPreview asset={asset} onOpenImage={setSelectedImage} />
+                    <AssetPreview asset={asset} onOpenImage={setSelectedImage} onOpenVideo={setSelectedVideo} />
                     <div className="asset-info">
                       <div className="asset-title-row">
-                        {asset.asset_type === "image" ? (
-                          <button type="button" className="asset-title asset-title-button" onClick={() => setSelectedImage(asset)} title={"放大查看：" + asset.title}>{asset.title}</button>
+                        {asset.asset_type === "image" || asset.asset_type === "video" ? (
+                          <button
+                            type="button"
+                            className="asset-title asset-title-button"
+                            onClick={() => asset.asset_type === "video" ? setSelectedVideo(asset) : setSelectedImage(asset)}
+                            title={(asset.asset_type === "video" ? "弹窗播放：" : "放大查看：") + asset.title}
+                          >
+                            {asset.title}
+                          </button>
                         ) : (
                           <a href={"/api/assets/" + asset.id + "/file/original"} target="_blank" rel="noreferrer" className="asset-title">{asset.title}</a>
                         )}
@@ -603,6 +724,7 @@ function App() {
         </div>
       </main>
       {selectedImage && <ImageLightbox key={selectedImage.id} asset={selectedImage} onClose={() => setSelectedImage(null)} />}
+      {selectedVideo && <VideoLightbox key={selectedVideo.id} asset={selectedVideo} onClose={() => setSelectedVideo(null)} />}
       {dialogOpen && session.csrf_token && <UploadDialog csrf={session.csrf_token} onClose={() => setDialogOpen(false)} onCreated={loadAssets} />}
     </div>
   );
