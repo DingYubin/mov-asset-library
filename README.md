@@ -34,6 +34,6 @@ npm run dev
 
 生产环境建议使用腾讯云轻量数据库 MySQL 8.0、腾讯云 COS 私有存储桶、Nginx HTTPS 反向代理和 systemd。
 
-当前部署模板将应用部署在站点根路径 `/`，旧的 `/mov-asset-library/` 地址会重定向到根路径；后端只监听 `127.0.0.1:8800`。
+当前部署模板将应用部署在站点根路径 `/`，旧的 `/mov-asset-library/` 地址会重定向到根路径；后端只监听 `127.0.0.1:8800`。生产入口使用 `https://119.91.33.40/`，80 端口除 ACME 验证路径外统一以 `308` 跳转到 HTTPS，避免登录凭据或 API 请求走明文 HTTP。
 
 服务器首次部署可先使用 `deploy/nginx/mov-asset-library-http.conf` 完成静态站点和 ACME 验证，再切换到 HTTPS 配置。生产环境的 `APP_SECRET_KEY`、数据库文件和 COS 密钥只放在服务器 `/etc/mov-asset-library.env`，不要提交到 Git。原 APEC 静态文件保留在 `/var/www/apec`，但不再占用站点根入口。
