@@ -203,7 +203,7 @@ def get_file(
     safe_inline = content_type.startswith(("image/jpeg", "image/png", "image/gif", "image/webp", "video/", "audio/"))
     disposition = "inline" if safe_inline else "attachment"
     filename = quote(item.original_name, safe="")
-    cache_control = "private, max-age=86400, immutable" if kind == "thumbnail" else "private, no-store"
+    cache_control = "private, max-age=86400, immutable"
     return StreamingResponse(
         stream,
         media_type=content_type,

@@ -79,4 +79,4 @@ def test_upload_image_creates_and_serves_thumbnail(tmp_path, monkeypatch):
 
         original = client.get(f"/api/assets/{payload['id']}/file/original")
         assert original.status_code == 200
-        assert original.headers["cache-control"] == "private, no-store"
+        assert original.headers["cache-control"] == "private, max-age=86400, immutable"

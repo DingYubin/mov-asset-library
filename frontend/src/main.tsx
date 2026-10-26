@@ -263,8 +263,10 @@ function AssetPreview({ asset, onOpenImage }: { asset: Asset; onOpenImage: (asse
 
 function ImageLightbox({ asset, onClose }: { asset: Asset; onClose: () => void }) {
   const [imageState, setImageState] = useState<"loading" | "loaded" | "error">("loading");
+  const [thumbnailState, setThumbnailState] = useState<"loading" | "loaded" | "error">("loading");
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const originalUrl = "/api/assets/" + asset.id + "/file/original";
+  const thumbnailUrl = asset.cover_url && asset.cover_url !== originalUrl ? asset.cover_url : null;
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
@@ -307,10 +309,26 @@ function ImageLightbox({ asset, onClose }: { asset: Asset; onClose: () => void }
         </button>
       </header>
 
-      <div className="image-lightbox-stage" onClick={closeOnBackdrop}>
+      <div className="image-lightbox-stage" onClick={closeOnBackdrop} aria-busy={imageState === "loading"}>
+        {thumbnailUrl && thumbnailState !== "error" && (
+          <img
+            className={
+              "image-lightbox-image image-lightbox-thumbnail" +
+              (thumbnailState === "loaded" ? " is-loaded" : "") +
+              (imageState === "loaded" ? " is-concealed" : "")
+            }
+            src={thumbnailUrl}
+            alt=""
+            aria-hidden="true"
+            decoding="async"
+            onClick={(event) => event.stopPropagation()}
+            onLoad={() => setThumbnailState("loaded")}
+            onError={() => setThumbnailState("error")}
+          />
+        )}
         {imageState !== "error" && (
           <img
-            className={"image-lightbox-image " + (imageState === "loaded" ? "is-loaded" : "")}
+            className={"image-lightbox-image image-lightbox-original" + (imageState === "loaded" ? " is-loaded" : "")}
             src={originalUrl}
             alt={asset.title}
             decoding="async"
@@ -319,13 +337,24 @@ function ImageLightbox({ asset, onClose }: { asset: Asset; onClose: () => void }
             onError={() => setImageState("error")}
           />
         )}
-        {imageState === "loading" && <div className="image-lightbox-loading" role="status"><span className="image-lightbox-spinner" />正在加载原图…</div>}
-        {imageState === "error" && (
-          <div className="image-lightbox-error" role="alert">
+        {imageState === "loading" && (
+          <div className={"image-lightbox-loading" + (thumbnailState === "loaded" ? " has-preview" : "")} role="status">
+            <span className="image-lightbox-spinner" />
+            {thumbnailState === "loaded" ? "正在加载高清原图…" : "正在加载预览…"}
+          </div>
+        )}
+        {imageState === "error" && thumbnailState !== "loaded" && (
+          <div className="image-lightbox-error" role="alert" onClick={(event) => event.stopPropagation()}>
             <FileImage size={34} />
             <strong>原图加载失败</strong>
             <span>可尝试重新打开或检查文件是否仍然存在。</span>
             <a href={originalUrl} target="_blank" rel="noreferrer">在新窗口打开原图</a>
+          </div>
+        )}
+        {imageState === "error" && thumbnailState === "loaded" && (
+          <div className="image-lightbox-fallback" role="status" onClick={(event) => event.stopPropagation()}>
+            <span>原图加载失败，当前显示预览图</span>
+            <a href={originalUrl} target="_blank" rel="noreferrer">打开原图</a>
           </div>
         )}
       </div>

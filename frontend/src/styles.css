@@ -259,32 +259,43 @@ kbd { padding: 3px 5px; color: #abb3b0; background: #f5f7f6; border: 1px solid v
   grid-template-rows: auto minmax(0, 1fr) auto;
   gap: 16px;
   padding: max(20px, env(safe-area-inset-top)) max(26px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(26px, env(safe-area-inset-left));
-  color: #f2f7f5;
-  background: rgba(8, 14, 13, .94);
-  backdrop-filter: blur(10px);
+  color: #34433f;
+  background: rgba(244, 248, 247, .7);
+  -webkit-backdrop-filter: blur(20px) saturate(130%);
+  backdrop-filter: blur(20px) saturate(130%);
   animation: lightbox-fade .18s ease-out;
 }
 .image-lightbox-header { min-width: 0; display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
 .image-lightbox-heading { min-width: 0; display: grid; gap: 4px; }
-.image-lightbox-kicker { color: #8fa39d; font-size: 9px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
-.image-lightbox-heading h2 { max-width: min(72vw, 820px); overflow: hidden; color: #f5f9f7; font-size: 16px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
-.image-lightbox-close { width: 40px; height: 40px; flex: 0 0 auto; display: grid; place-items: center; padding: 0; color: #d6dfdc; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.13); border-radius: 50%; transition: color .16s ease, background .16s ease, transform .16s ease; }
-.image-lightbox-close:hover { color: #fff; background: rgba(255,255,255,.16); transform: rotate(3deg); }
-.image-lightbox-close:focus-visible { outline: 2px solid #83c9ba; outline-offset: 3px; }
-.image-lightbox-stage { position: relative; min-width: 0; min-height: 0; display: grid; place-items: center; overflow: hidden; }
-.image-lightbox-image { display: block; width: auto; height: auto; max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 3px; opacity: 0; box-shadow: 0 22px 70px rgba(0,0,0,.38); transform: scale(.986); transition: opacity .2s ease, transform .2s ease; cursor: default; }
+.image-lightbox-kicker { color: #668078; font-size: 9px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
+.image-lightbox-heading h2 { max-width: min(72vw, 820px); overflow: hidden; color: #27332f; font-size: 16px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+.image-lightbox-close { width: 40px; height: 40px; flex: 0 0 auto; display: grid; place-items: center; padding: 0; color: #50665f; background: rgba(255,255,255,.66); border: 1px solid rgba(53,82,73,.14); border-radius: 50%; box-shadow: 0 4px 16px rgba(44,69,61,.08); transition: color .16s ease, background .16s ease, transform .16s ease; }
+.image-lightbox-close:hover { color: #1f473e; background: rgba(255,255,255,.94); transform: rotate(3deg); }
+.image-lightbox-close:focus-visible { outline: 2px solid #4c9a89; outline-offset: 3px; }
+.image-lightbox-stage { position: relative; isolation: isolate; min-width: 0; min-height: 0; display: grid; place-items: center; overflow: hidden; }
+.image-lightbox-image { position: absolute; z-index: 1; inset: 0; display: block; width: auto; height: auto; max-width: 100%; max-height: 100%; margin: auto; object-fit: contain; border-radius: 3px; opacity: 0; box-shadow: 0 20px 60px rgba(35,58,50,.18); transform: scale(.986); transition: opacity .24s ease, transform .24s ease; cursor: default; }
 .image-lightbox-image.is-loaded { opacity: 1; transform: scale(1); }
-.image-lightbox-loading { position: absolute; display: flex; align-items: center; gap: 10px; color: #aab9b4; font-size: 11px; pointer-events: none; }
-.image-lightbox-spinner { width: 18px; height: 18px; border: 2px solid rgba(255,255,255,.18); border-top-color: #8fd0c1; border-radius: 50%; animation: lightbox-spin .8s linear infinite; }
-.image-lightbox-error { display: grid; justify-items: center; gap: 8px; max-width: 340px; padding: 28px; color: #95a6a0; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.1); border-radius: 10px; text-align: center; }
-.image-lightbox-error svg { margin-bottom: 4px; color: #7e998f; }
-.image-lightbox-error strong { color: #e2e9e6; font-size: 14px; }
+.image-lightbox-thumbnail.is-concealed { opacity: 0; }
+.image-lightbox-original { z-index: 2; }
+.image-lightbox-loading { position: absolute; z-index: 3; left: 50%; bottom: 16px; display: flex; align-items: center; gap: 9px; padding: 7px 11px; color: #50665f; background: rgba(255,255,255,.8); border: 1px solid rgba(53,82,73,.1); border-radius: 999px; box-shadow: 0 6px 22px rgba(39,63,56,.1); font-size: 10px; white-space: nowrap; pointer-events: none; transform: translateX(-50%); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+.image-lightbox-loading:not(.has-preview) { top: 50%; bottom: auto; transform: translate(-50%, -50%); }
+.image-lightbox-spinner { width: 14px; height: 14px; border: 2px solid rgba(64,99,89,.18); border-top-color: #4c9a89; border-radius: 50%; animation: lightbox-spin .8s linear infinite; }
+.image-lightbox-error { position: relative; z-index: 3; display: grid; justify-items: center; gap: 8px; max-width: 340px; padding: 28px; color: #6c817a; background: rgba(255,255,255,.72); border: 1px solid rgba(53,82,73,.12); border-radius: 10px; box-shadow: 0 14px 42px rgba(35,58,50,.12); text-align: center; }
+.image-lightbox-error svg { margin-bottom: 4px; color: #77a096; }
+.image-lightbox-error strong { color: #34433f; font-size: 14px; }
 .image-lightbox-error span { font-size: 11px; line-height: 1.6; }
-.image-lightbox-error a { margin-top: 4px; padding: 7px 11px; color: #a9ddcf; border: 1px solid rgba(143,208,193,.32); border-radius: 6px; font-size: 11px; }
-.image-lightbox-error a:hover { background: rgba(143,208,193,.1); }
-.image-lightbox-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 7px; min-height: 20px; color: #8d9d98; font-size: 10px; }
-.image-lightbox-footer i { width: 3px; height: 3px; border-radius: 50%; background: #53635e; }
-.image-lightbox-hint { margin-left: 13px; color: #6f817b; }
+.image-lightbox-error a, .image-lightbox-fallback a { padding: 7px 11px; color: #226f61; background: rgba(255,255,255,.56); border: 1px solid rgba(61,122,108,.24); border-radius: 6px; font-size: 11px; }
+.image-lightbox-error a { margin-top: 4px; }
+.image-lightbox-error a:hover, .image-lightbox-fallback a:hover { background: rgba(255,255,255,.92); }
+.image-lightbox-fallback { position: absolute; z-index: 4; left: 50%; bottom: 16px; display: flex; align-items: center; gap: 10px; padding: 8px 9px 8px 13px; color: #566c65; background: rgba(255,255,255,.82); border: 1px solid rgba(53,82,73,.12); border-radius: 999px; box-shadow: 0 6px 22px rgba(39,63,56,.1); font-size: 10px; transform: translateX(-50%); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+.image-lightbox-fallback a { padding: 4px 8px; }
+.image-lightbox-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 7px; min-height: 20px; color: #62776f; font-size: 10px; }
+.image-lightbox-footer i { width: 3px; height: 3px; border-radius: 50%; background: #91aaa3; }
+.image-lightbox-hint { margin-left: 13px; color: #7f918b; }
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .image-lightbox { background: rgba(245, 249, 248, .94); }
+}
 
 @keyframes lightbox-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes lightbox-spin { to { transform: rotate(360deg); } }
