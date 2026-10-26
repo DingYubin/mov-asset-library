@@ -15,7 +15,7 @@ from ..models import Asset, AssetFile, AuditLog, SessionRecord
 from ..schemas import AssetResponse, AssetUpdate
 from ..security import get_current_session, require_csrf
 from ..storage import get_storage
-from ..thumbnail_service import create_image_thumbnail
+from ..thumbnail_service import create_image_thumbnail, create_video_thumbnail
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/assets", tags=["assets"])
@@ -126,18 +126,23 @@ def create_asset(
         sha256=digest,
     )
     asset.files.append(original)
-    if asset_type == "image":
+    if asset_type in {"image", "video"}:
         try:
-            thumbnail_result = create_image_thumbnail(storage, original, original_name)
+            if asset_type == "image":
+                thumbnail_result = create_image_thumbnail(storage, original, original_name)
+            else:
+                thumbnail_result = create_video_thumbnail(storage, original, original_name)
             if thumbnail_result:
-                thumbnail, source_width, source_height = thumbnail_result
-                asset.files.append(thumbnail)
-                asset.cover_key = thumbnail.object_key
-                original.width = source_width
-                original.height = source_height
+                asset.files.append(thumbnail_result.asset_file)
+                asset.cover_key = thumbnail_result.asset_file.object_key
+                original.width = thumbnail_result.source_width
+                original.height = thumbnail_result.source_height
+                original.duration_ms = thumbnail_result.duration_ms
+            elif asset_type == "video":
+                logger.warning("Could not generate video preview for %s", original_name)
         except Exception:
             # A preview failure must not stop the original asset from being stored.
-            logger.exception("Failed to generate thumbnail for %s", original_name)
+            logger.exception("Failed to generate preview for %s", original_name)
     db.add(asset)
     db.flush()
     log(db, session, request, "asset_created", asset.id)

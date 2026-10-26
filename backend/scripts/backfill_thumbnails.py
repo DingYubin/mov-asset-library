@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app.db import SessionLocal, init_db
 from app.models import Asset
 from app.storage import get_storage
-from app.thumbnail_service import create_image_thumbnail
+from app.thumbnail_service import create_image_thumbnail, create_video_thumbnail
 
 logger = logging.getLogger("backfill_thumbnails")
 
@@ -26,7 +26,7 @@ def main() -> None:
         assets = db.scalars(
             select(Asset)
             .options(selectinload(Asset.files))
-            .where(Asset.asset_type == "image")
+            .where(Asset.asset_type.in_(["image", "video"]))
             .order_by(Asset.created_at)
         ).all()
         for asset in assets:
@@ -45,16 +45,21 @@ def main() -> None:
                 continue
 
             try:
-                result = create_image_thumbnail(storage, original, original.original_name)
+                if asset.asset_type == "image":
+                    result = create_image_thumbnail(storage, original, original.original_name)
+                else:
+                    result = create_video_thumbnail(storage, original, original.original_name)
                 if not result:
                     failed += 1
-                    logger.warning("Unsupported or invalid image for asset %s", asset.id)
+                    logger.warning(
+                        "Unsupported or invalid %s for asset %s", asset.asset_type, asset.id
+                    )
                     continue
-                thumbnail, source_width, source_height = result
-                asset.files.append(thumbnail)
-                asset.cover_key = thumbnail.object_key
-                original.width = source_width
-                original.height = source_height
+                asset.files.append(result.asset_file)
+                asset.cover_key = result.asset_file.object_key
+                original.width = result.source_width
+                original.height = result.source_height
+                original.duration_ms = result.duration_ms
                 db.commit()
                 created += 1
             except Exception:
