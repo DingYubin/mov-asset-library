@@ -20,35 +20,15 @@ import {
   Plus,
   Search,
   Settings2,
+  ScrollText,
   ShieldCheck,
   Upload,
   Video,
   X,
 } from "lucide-react";
+import ScreenplayWorkspace from "./ScreenplayWorkspace";
+import type { Asset, Session } from "./types";
 import "./styles.css";
-
-type Asset = {
-  id: string;
-  title: string;
-  asset_type: string;
-  description: string;
-  category: string;
-  tags: string[];
-  status: "draft" | "published" | "archived";
-  visibility: "private" | "public";
-  cover_url?: string | null;
-  original_name?: string | null;
-  mime_type?: string | null;
-  size_bytes: number;
-  created_at: string;
-  updated_at: string;
-};
-
-type Session = {
-  authenticated: boolean;
-  csrf_token?: string | null;
-  user?: { id: string; username: string } | null;
-};
 
 const categories = ["全部资产", "图片", "视频", "音频", "文档", "未分类"];
 
@@ -551,6 +531,8 @@ function VideoLightbox({ asset, onClose }: { asset: Asset; onClose: () => void }
 function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [assets, setAssets] = useState<Asset[]>([]);
+  const [activeView, setActiveView] = useState<"assets" | "screenplays">("assets");
+  const [screenplayProjectCount, setScreenplayProjectCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
@@ -639,6 +621,12 @@ function App() {
     setSession({ authenticated: false });
   }
 
+  function openAssetView(category = "全部资产", status = "全部状态") {
+    setActiveView("assets");
+    setSelectedCategory(category);
+    setStatusFilter(status);
+  }
+
   if (loading) return <div className="boot-screen"><Layers3 size={22} /><span>正在连接资产库</span></div>;
   if (!session?.authenticated) return <LoginScreen onLogin={setSession} />;
 
@@ -648,15 +636,19 @@ function App() {
         <a className="brand" href="#"><span className="brand-mark"><Layers3 size={17} /></span><span><strong>MOV</strong><small>ASSET LIBRARY</small></span></a>
         <div className="sidebar-section">
           <span className="section-label">工作区</span>
-          <button className="nav-item active"><Grid2X2 size={17} />资产总览<span className="nav-count">{counts.all}</span></button>
-          <button className="nav-item" onClick={() => { setSelectedCategory("全部资产"); setStatusFilter("全部状态"); }}><FolderOpen size={17} />全部资产</button>
-          <button className="nav-item" onClick={() => setStatusFilter("draft")}><Archive size={17} />待整理</button>
-          <button className="nav-item" onClick={() => setStatusFilter("published")}><Check size={17} />已发布<span className="nav-count">{counts.published}</span></button>
+          <button className={"nav-item" + (activeView === "assets" ? " active" : "")} onClick={() => openAssetView()}><Grid2X2 size={17} />资产总览<span className="nav-count">{counts.all}</span></button>
+          <button className={"nav-item" + (activeView === "screenplays" ? " active" : "")} onClick={() => setActiveView("screenplays")}><ScrollText size={17} />剧本工作区<span className="nav-count">{screenplayProjectCount}</span></button>
+        </div>
+        <div className="sidebar-section asset-nav-section">
+          <span className="section-label">资产库</span>
+          <button className="nav-item" onClick={() => openAssetView()}><FolderOpen size={17} />全部资产</button>
+          <button className="nav-item" onClick={() => openAssetView("全部资产", "draft")}><Archive size={17} />待整理</button>
+          <button className="nav-item" onClick={() => openAssetView("全部资产", "published")}><Check size={17} />已发布<span className="nav-count">{counts.published}</span></button>
         </div>
         <div className="sidebar-section category-section">
           <span className="section-label">资产分类<button className="tiny-action" title="分类设置"><Plus size={14} /></button></span>
           {categories.slice(1).map((category) => (
-            <button className={"nav-item sub-nav" + (selectedCategory === category ? " active" : "")} key={category} onClick={() => { setSelectedCategory(category); setStatusFilter("全部状态"); }}>
+            <button className={"nav-item sub-nav" + (activeView === "assets" && selectedCategory === category ? " active" : "")} key={category} onClick={() => openAssetView(category)}>
               <span className={"category-dot " + category} />{category}
             </button>
           ))}
@@ -669,8 +661,8 @@ function App() {
       </aside>
 
       <main className="main-area">
-        <header className="topbar"><div className="breadcrumbs"><span>工作区</span><span className="crumb-slash">/</span><strong>资产总览</strong></div><div className="top-actions"><span className="private-indicator"><ShieldCheck size={14} />私有空间</span><button className="icon-button" title="设置"><Settings2 size={17} /></button></div></header>
-        <div className="page-content">
+        <header className="topbar"><div className="breadcrumbs"><span>工作区</span><span className="crumb-slash">/</span><strong>{activeView === "assets" ? "资产总览" : "剧本工作区"}</strong></div><div className="top-actions"><span className="private-indicator"><ShieldCheck size={14} />私有空间</span><button className="icon-button" title="设置"><Settings2 size={17} /></button></div></header>
+        <div className="page-content" hidden={activeView !== "assets"}>
           <div className="page-heading"><div><h1>资产总览</h1><p>集中管理你的创作素材与项目资源</p></div><button className="primary-button" onClick={() => setDialogOpen(true)}><Plus size={17} />添加资产</button></div>
           <section className="overview-strip" aria-label="资产概览">
             <div className="overview-item"><span className="overview-icon total"><Layers3 size={17} /></span><span><small>全部资产</small><strong>{counts.all}</strong></span></div>
@@ -721,6 +713,18 @@ function App() {
             )}
           </section>
           <footer className="page-footer"><span>© MOV Asset Library</span><span><ShieldCheck size={13} />你的文件保存在私有存储空间</span></footer>
+        </div>
+        <div className="screenplay-workspace-view" hidden={activeView !== "screenplays"}>
+          {session.csrf_token && (
+            <ScreenplayWorkspace
+              csrf={session.csrf_token}
+              active={activeView === "screenplays"}
+              onUnauthorized={() => setSession({ authenticated: false })}
+              onOpenImage={setSelectedImage}
+              onOpenVideo={setSelectedVideo}
+              onProjectCountChange={setScreenplayProjectCount}
+            />
+          )}
         </div>
       </main>
       {selectedImage && <ImageLightbox key={selectedImage.id} asset={selectedImage} onClose={() => setSelectedImage(null)} />}

@@ -61,6 +61,9 @@ class Asset(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, onupdate=now_utc)
 
     files: Mapped[list["AssetFile"]] = relationship(back_populates="asset", cascade="all, delete-orphan")
+    scene_links: Mapped[list["ScreenplaySceneAsset"]] = relationship(
+        back_populates="asset", cascade="all, delete-orphan"
+    )
 
 
 class AssetFile(Base):
@@ -94,3 +97,57 @@ class AuditLog(Base):
     detail: Mapped[str] = mapped_column(Text, default="")
     ip_address: Mapped[str] = mapped_column(String(64), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class ScreenplayProject(Base):
+    __tablename__ = "screenplay_projects"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    title: Mapped[str] = mapped_column(String(200), index=True)
+    logline: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(30), default="draft", index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, onupdate=now_utc)
+
+    scenes: Mapped[list["ScreenplayScene"]] = relationship(
+        back_populates="project",
+        cascade="all, delete-orphan",
+        order_by="ScreenplayScene.position",
+    )
+
+
+class ScreenplayScene(Base):
+    __tablename__ = "screenplay_scenes"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("screenplay_projects.id", ondelete="CASCADE"), index=True
+    )
+    position: Mapped[int] = mapped_column(Integer, default=0, index=True)
+    heading: Mapped[str] = mapped_column(String(300), default="")
+    content: Mapped[str] = mapped_column(Text, default="")
+    notes: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, onupdate=now_utc)
+
+    project: Mapped[ScreenplayProject] = relationship(back_populates="scenes")
+    asset_links: Mapped[list["ScreenplaySceneAsset"]] = relationship(
+        back_populates="scene",
+        cascade="all, delete-orphan",
+        order_by="ScreenplaySceneAsset.created_at",
+    )
+
+
+class ScreenplaySceneAsset(Base):
+    __tablename__ = "screenplay_scene_assets"
+
+    scene_id: Mapped[str] = mapped_column(
+        ForeignKey("screenplay_scenes.id", ondelete="CASCADE"), primary_key=True
+    )
+    asset_id: Mapped[str] = mapped_column(
+        ForeignKey("assets.id", ondelete="CASCADE"), primary_key=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+    scene: Mapped[ScreenplayScene] = relationship(back_populates="asset_links")
+    asset: Mapped[Asset] = relationship(back_populates="scene_links")

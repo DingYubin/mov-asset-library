@@ -5,7 +5,7 @@ from urllib.parse import urlsplit
 
 from .config import get_settings
 from .db import init_db
-from .routes import assets, auth
+from .routes import assets, auth, screenplays
 
 settings = get_settings()
 app = FastAPI(title="MOV Asset Library API", version="0.1.0")
@@ -36,6 +36,7 @@ async def enforce_browser_origin(request: Request, call_next):
     return await call_next(request)
 app.include_router(auth.router)
 app.include_router(assets.router)
+app.include_router(screenplays.router)
 
 
 @app.on_event("startup")
