@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     cookie_secure: bool = False
     max_upload_bytes: int = 512 * 1024 * 1024
 
+    asset_library_api_token: str = ""
+    asset_library_public_base_url: str = ""
+    asset_library_publish_verify_timeout_seconds: int = 15
+
     cos_secret_id: str = ""
     cos_secret_key: str = ""
     cos_region: str = "ap-guangzhou"
